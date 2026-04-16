@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau de bord — Événements réseau tram</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh;font-size:14px}
+select,input,textarea{font-family:inherit;font-size:13px;color:#1a1a1a;background:#fff;border:0.5px solid #ccc;border-radius:8px;padding:6px 10px;width:100%}
+select:focus,input:focus,textarea:focus{outline:2px solid #378ADD;outline-offset:1px}
+button{font-family:inherit;font-size:13px;cursor:pointer;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#1a1a1a;padding:6px 12px;transition:background 0.15s}
+button:hover{background:#f0f0f0}
+.btn-primary{background:#185FA5;color:#fff;border-color:#185FA5}
+.btn-primary:hover{background:#0C447C}
+.btn-danger{color:#A32D2D;border-color:#F09595}
+.btn-danger:hover{background:#FCEBEB}
+.btn-success{color:#3B6D11;border-color:#97C459}
+.btn-success:hover{background:#EAF3DE}
+.card{background:#fff;border:0.5px solid #e0e0e0;border-radius:12px;padding:1rem 1.25rem}
+.stat-card{background:#f0f0ec;border-radius:8px;padding:1rem;text-align:center}
+.stat-label{font-size:12px;color:#666;margin-bottom:4px}
+.stat-value{font-size:22px;font-weight:500}
+label.lbl{display:block;font-size:12px;color:#666;margin-bottom:4px}
+.alert-box{background:#FCEBEB;border:0.5px solid #F09595;border-radius:8px;padding:10px 14px;font-size:12px;color:#791F1F;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;font-size:11px;color:#666;font-weight:500;border-bottom:0.5px solid #e0e0e0;white-space:nowrap}
+td{padding:7px 10px;border-bottom:0.5px solid #e0e0e0;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+.tag-blue{background:#E6F1FB;color:#0C447C}
+.tag-green{background:#EAF3DE;color:#27500A}
+.bar-chart{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.bar-row{display:flex;align-items:center;gap:8px;font-size:11px}
+.bar-label{width:130px;text-align:right;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.bar-track{flex:1;background:#f0f0ec;border-radius:4px;height:18px;overflow:hidden}
+.bar-fill{height:100%;background:#378ADD;border-radius:4px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px}
+.bar-val{font-size:10px;color:#fff;font-weight:500}
+.mini-bar-fill{background:#639922}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.overflow-x{overflow-x:auto}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.section-title{font-size:13px;font-weight:500;color:#666;margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid #e0e0e0}
+.badge-alert{background:#FCEBEB;color:#A32D2D;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:500}
+input[type=checkbox]{width:auto;accent-color:#185FA5}
+.main-layout{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+.sticky-form{position:sticky;top:80px}
+@media(max-width:800px){.main-layout{grid-template-columns:1fr}.sticky-form{position:static}.grid4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+header{background:#fff;border-bottom:0.5px solid #e0e0e0;padding:14px 20px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.header-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.content{padding:16px 20px;max-width:1200px;margin:0 auto}
+#sync-status{font-size:11px;padding:4px 10px;border-radius:20px;font-weight:500}
+.sync-ok{background:#EAF3DE;color:#27500A}
+.sync-loading{background:#FAEEDA;color:#633806}
+.sync-error{background:#FCEBEB;color:#A32D2D}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div style="font-size:17px;font-weight:500">Tableau de bord événements</div>
+    <div style="font-size:12px;color:#888;margin-top:2px">Réseau tram — Partagé en temps réel</div>
+  </div>
+  <div class="header-btns">
+    <span id="sync-status" class="sync-loading">⟳ Connexion...</span>
+    <button onclick="exportXLSX()">Export XLSX (filtré)</button>
+    <button onclick="exportParMois()">Export par mois</button>
+    <label style="display:inline-block;padding:6px 12px;border:0.5px solid #ccc;border-radius:8px;cursor:pointer;font-size:13px;background:#fff">
+      Import XLSX
+      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleImport(this.files[0]).then(()=>this.value='')">
+    </label>
+    <button class="btn-danger" onclick="if(confirm('Supprimer tous les événements ?'))clearAll()">Tout effacer</button>
+  </div>
+</header>
+
+<div class="content">
+  <div id="loading" style="text-align:center;padding:60px;color:#888">Chargement des données...</div>
+
+  <div id="main-layout" class="main-layout" style="display:none">
+
+    <!-- FORMULAIRE FIXE — jamais recréé par Firebase -->
+    <div class="card sticky-form" id="form-panel">
+      <div class="section-title">Nouvel événement</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+
+        <div><label class="lbl">Événement</label>
+          <select id="f-titre">
+            <option value="">-- Sélectionner --</option>
+            <option>intervention hors plage horaire</option>
+            <option>intervention</option>
+            <option>contrôle décâblage</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div><label class="lbl">Date</label><input type="date" id="f-date"></div>
+          <div><label class="lbl">Lieu</label><input type="text" id="f-lieu" placeholder="Ville, site…"></div>
+        </div>
+
+        <div class="form-row">
+          <div><label class="lbl">Type</label>
+            <select id="f-type" onchange="onTypeChange()">
+              <option>aiguille 24V</option><option>aiguille de jonction</option>
+              <option>croisement TB/TB</option><option>croisement TW/TB</option>
+              <option>croisement ouvert</option><option>courbe</option>
+              <option>câble</option><option>Armoire d'alimentation</option>
+              <option>Armoire de Pontage</option><option>Pompier/Police</option>
+              <option>Objet sur la ligne</option><option>Ebus</option><option>Pantographe</option>
+            </select>
+          </div>
+          <div><label class="lbl">Ligne</label>
+            <select id="f-ligne">
+              <option>TW</option><option>TB</option><option>Mixte</option>
+              <option>CMB</option><option>CMJ</option><option>CMC</option>
+            </select>
+          </div>
+        </div>
+
+        <div><label class="lbl">Motif</label>
+          <select id="f-motif">
+            <option value="">-- Sélectionner un motif --</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div><label class="lbl">Heures (centièmes)</label>
+            <input type="number" id="f-heures" step="0.01" min="0" value="0">
+          </div>
+          <div><label class="lbl">Météo</label>
+            <select id="f-meteo">
+              <option value="">Auto / saisir</option>
+              <option>Ensoleillé</option><option>Nuageux</option><option>Pluie</option>
+              <option>Orage</option><option>Neige</option><option>Vent</option><option>Brouillard</option>
+            </select>
+            <label style="font-size:11px;color:#666;margin-top:4px;display:flex;align-items:center;gap:5px">
+              <input type="checkbox" id="f-autometeo" checked> Auto (Genève)
+            </label>
+          </div>
+        </div>
+
+        <div><label class="lbl">Agent / équipe</label>
+          <input type="text" id="f-agent" placeholder="Nom / équipe">
+        </div>
+
+        <div><label class="lbl">Notes</label>
+          <textarea id="f-notes" rows="2"></textarea>
+        </div>
+
+        <button class="btn-primary" onclick="addEvent()" style="width:100%;padding:8px">+ Ajouter l'événement</button>
+      </div>
+    </div>
+
+    <!-- PARTIE DROITE — mise à jour par Firebase sans toucher au formulaire -->
+    <div id="right-panel" style="display:flex;flex-direction:column;gap:14px">
+      <!-- Filtres -->
+      <div class="card" style="padding:12px 14px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <input type="text" id="filter-q" placeholder="Rechercher…" oninput="renderRight()" style="flex:1;min-width:150px">
+          <select id="filter-type" onchange="renderRight()" style="flex:1;min-width:120px">
+            <option>Tous</option>
+            <option>aiguille 24V</option><option>aiguille de jonction</option>
+            <option>croisement TB/TB</option><option>croisement TW/TB</option>
+            <option>croisement ouvert</option><option>courbe</option>
+            <option>câble</option><option>Armoire d'alimentation</option>
+            <option>Armoire de Pontage</option><option>Pompier/Police</option>
+            <option>Objet sur la ligne</option><option>Ebus</option><option>Pantographe</option>
+          </select>
+          <select id="filter-ligne" onchange="renderRight()" style="flex:1;min-width:100px">
+            <option>Toutes</option>
+            <option>TW</option><option>TB</option><option>Mixte</option>
+            <option>CMB</option><option>CMJ</option><option>CMC</option>
+          </select>
+          <select id="filter-motif" onchange="renderRight()" style="flex:1;min-width:120px"><option>Tous</option></select>
+          <select id="filter-meteo" onchange="renderRight()" style="flex:1;min-width:110px"><option>Toutes</option></select>
+        </div>
+      </div>
+      <!-- Stats et tableaux injectés ici -->
+      <div id="stats-area"></div>
+      <div id="charts-area"></div>
+      <div id="tables-area"></div>
+      <div id="list-area"></div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDOPPTQwuJS-pUW8Yn65fapMAtVBSDy3OQ",
+  authDomain: "tableau-tram.firebaseapp.com",
+  projectId: "tableau-tram",
+  storageBucket: "tableau-tram.firebasestorage.app",
+  messagingSenderId: "936273926398",
+  appId: "1:936273926398:web:30722bc9f404e002646daf"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const colRef = collection(db, "evenements");
+
+const TYPE_TO_MOTIFS={
+  "aiguille 24V":["RAS","Moteur","Capteur de sortie","TRX","SWMZ","SP13","UMV","UBZ","Afficheur LED","Ventilateur","Antenne","Carte SD","Tube","Platine","file coupé/débranché"],
+  "aiguille de jonction":["Aiguille de jonction","croisement","tube","œillet","patin en téflon"],
+  "croisement TB/TB":["Croisement 20°","Croisement 30°","Croisement 40°","Croisement 45/90°","Montage tube","oeillet"],
+  "croisement TW/TB":["Croisement TW/TB 45/90°","croisement 35/65°","montage tube"],
+  "croisement ouvert":["Croisement complet","Corne de croisement","barre profilé","montage tube"],
+  "courbe":["Montage tube","Nervure"],
+  "câble":["Déconnecter","Brulé","décroché"],
+  "Armoire d'alimentation":["Accidentée","Brulé"],
+  "Armoire de Pontage":["Accidentée","Brulé"],
+  "Pompier/Police":["Accident","incendie","fuite de Gaz"],
+  "Objet sur la ligne":["Branche","Ballon","Sneakers","linge","bâche"],
+  "Ebus":["Potence"],
+  "Pantographe":["Tordue","cassé"]
+};
+const METEO_OPTIONS=["Ensoleillé","Nuageux","Pluie","Orage","Neige","Vent","Brouillard"];
+const ALERT_THRESHOLD=8;
+const GENEVA={lat:46.2044,lon:6.1432,tz:"Europe/Paris"};
+
+let events=[];
+let editingId=null;
+let editDraft=null;
+
+// ——— Météo ———
+function mapWeatherCode(code,wind){
+  if([95,96,99].includes(code))return"Orage";
+  if((code>=61&&code<=67)||(code>=51&&code<=57)||(code>=80&&code<=82))return"Pluie";
+  if((code>=71&&code<=77)||(code>=85&&code<=86))return"Neige";
+  if(wind!=null&&wind>=50&&(code===0||[1,2,3,45,48].includes(code)))return"Vent";
+  if(code===0)return"Ensoleillé";if([45,48].includes(code))return"Brouillard";
+  return"Nuageux";
+}
+async function fetchMeteo(date){
+  try{
+    if(!date)return null;
+    const ymd=date.slice(0,10);
+    const today=new Date().toISOString().slice(0,10);
+    const base=ymd<today?"https://archive-api.open-meteo.com/v1/archive":"https://api.open-meteo.com/v1/forecast";
+    const url=new URL(base);
+    url.searchParams.set("latitude",GENEVA.lat);url.searchParams.set("longitude",GENEVA.lon);
+    url.searchParams.set("timezone",GENEVA.tz);url.searchParams.set("start_date",ymd);url.searchParams.set("end_date",ymd);
+    url.searchParams.set("daily","weathercode,windspeed_10m_max");
+    const res=await fetch(url.toString());const data=await res.json();
+    const code=data?.daily?.weathercode?.[0];const wind=data?.daily?.windspeed_10m_max?.[0];
+    if(typeof code!=="number")return null;
+    return mapWeatherCode(code,typeof wind==="number"?wind:undefined);
+  }catch{return null;}
+}
+
+function formatFR(iso){if(!iso)return"";const d=new Date(iso);if(isNaN(d.getTime()))return iso;return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});}
+function setSyncStatus(s,m){const el=document.getElementById("sync-status");if(!el)return;el.className="sync-"+s;el.textContent=m;}
+function meteoIcon(m){return{"Ensoleillé":"☀","Nuageux":"⛅","Pluie":"🌧","Orage":"⛈","Neige":"❄","Vent":"💨","Brouillard":"🌫"}[m]||"";}
+
+// ——— Motifs selon type ———
+function onTypeChange(){
+  const type=document.getElementById("f-type").value;
+  const sel=document.getElementById("f-motif");
+  const motifs=TYPE_TO_MOTIFS[type]||[];
+  sel.innerHTML=`<option value="">-- Sélectionner un motif --</option>${motifs.map(m=>`<option>${m}</option>`).join("")}`;
+}
+window.onTypeChange=onTypeChange;
+
+// ——— Firebase ———
+function startListening(){
+  const q=query(colRef,orderBy("createdAt","desc"));
+  onSnapshot(q,(snap)=>{
+    events=snap.docs.map(d=>({id:d.id,...d.data()}));
+    setSyncStatus("ok","● En ligne — "+events.length+" événements");
+    document.getElementById("loading").style.display="none";
+    document.getElementById("main-layout").style.display="grid";
+    updateFilterOptions();
+    renderRight(); // Ne touche PAS au formulaire
+  },(err)=>{setSyncStatus("error","✕ Erreur connexion");console.error(err);});
+}
+
+function updateFilterOptions(){
+  const allMotifs=[...new Set(events.map(e=>e.motif).filter(Boolean))];
+  const allMeteos=[...new Set(events.map(e=>e.meteo).filter(Boolean))];
+  const fmSel=document.getElementById("filter-motif");
+  const curM=fmSel.value;
+  fmSel.innerHTML=`<option>Tous</option>${allMotifs.map(m=>`<option${m===curM?" selected":""}>${m}</option>`).join("")}`;
+  const feSel=document.getElementById("filter-meteo");
+  const curE=feSel.value;
+  feSel.innerHTML=`<option>Toutes</option>${allMeteos.map(m=>`<option${m===curE?" selected":""}>${m}</option>`).join("")}`;
+}
+
+// ——— Ajouter ———
+async function addEvent(){
+  const titre=document.getElementById("f-titre").value;
+  const date=document.getElementById("f-date").value;
+  const lieu=document.getElementById("f-lieu").value.trim();
+  const type=document.getElementById("f-type").value;
+  const ligne=document.getElementById("f-ligne").value;
+  const motif=document.getElementById("f-motif").value;
+  const heures=parseFloat(document.getElementById("f-heures").value)||0;
+  const agent=document.getElementById("f-agent").value.trim();
+  const notes=document.getElementById("f-notes").value.trim();
+  const autoM=document.getElementById("f-autometeo").checked;
+  let meteo=document.getElementById("f-meteo").value;
+
+  if(!titre||!date||!lieu||!motif){alert("Merci de remplir : Événement, Date, Lieu et Motif.");return;}
+  setSyncStatus("loading","⟳ Enregistrement...");
+  if(autoM){meteo=(await fetchMeteo(date))??meteo;}
+
+  try{
+    await addDoc(colRef,{titre,date,lieu,type,ligne,motif,meteo:meteo||"",heures,notes,agent,createdAt:Date.now()});
+    // Reset formulaire sans recréer les éléments
+    document.getElementById("f-titre").value="";
+    document.getElementById("f-date").value="";
+    document.getElementById("f-lieu").value="";
+    document.getElementById("f-type").value="aiguille 24V";
+    document.getElementById("f-ligne").value="TW";
+    document.getElementById("f-heures").value="0";
+    document.getElementById("f-agent").value="";
+    document.getElementById("f-notes").value="";
+    document.getElementById("f-meteo").value="";
+    onTypeChange();
+  }catch(e){setSyncStatus("error","✕ Erreur");alert("Erreur: "+e.message);}
+}
+window.addEvent=addEvent;
+
+// ——— Supprimer ———
+async function removeEvent(id){
+  if(!confirm("Supprimer cet événement ?"))return;
+  setSyncStatus("loading","⟳ Suppression...");
+  try{await deleteDoc(doc(db,"evenements",id));}
+  catch(e){setSyncStatus("error","✕ Erreur");alert("Erreur: "+e.message);}
+}
+window.removeEvent=removeEvent;
+
+// ——— Édition ———
+window.startEdit=(id)=>{
+  const e=events.find(x=>x.id===id);if(!e)return;
+  editingId=id;
+  editDraft={titre:e.titre,date:e.date,lieu:e.lieu,type:e.type,ligne:e.ligne,motif:e.motif,meteo:e.meteo||"",heures:e.heures,notes:e.notes||"",agent:e.agent||""};
+  renderRight();
+};
+
+window.cancelEdit=()=>{editingId=null;editDraft=null;renderRight();};
+
+window.saveEdit=async()=>{
+  if(!editDraft||!editingId)return;
+  editDraft.lieu=document.getElementById("edit-lieu")?.value||editDraft.lieu;
+  editDraft.agent=document.getElementById("edit-agent")?.value||editDraft.agent;
+  editDraft.notes=document.getElementById("edit-notes")?.value||editDraft.notes;
+  const autoM=document.getElementById("f-autometeo").checked;
+  setSyncStatus("loading","⟳ Mise à jour...");
+  let meteo=editDraft.meteo;
+  if(autoM&&editDraft.date){meteo=(await fetchMeteo(editDraft.date))??meteo;}
+  try{
+    await updateDoc(doc(db,"evenements",editingId),{...editDraft,meteo});
+    editingId=null;editDraft=null;renderRight();
+  }catch(e){setSyncStatus("error","✕ Erreur");alert("Erreur: "+e.message);}
+};
+
+// ——— Clear all ———
+async function clearAll(){
+  setSyncStatus("loading","⟳ Suppression...");
+  try{
+    const snap=await getDocs(colRef);const batch=writeBatch(db);
+    snap.docs.forEach(d=>batch.delete(d.ref));await batch.commit();
+    editingId=null;editDraft=null;
+  }catch(e){setSyncStatus("error","✕ Erreur");alert("Erreur: "+e.message);}
+}
+window.clearAll=clearAll;
+
+// ——— Export/Import ———
+function exportXLSX(){
+  const evs=filtered();
+  const ws=XLSX.utils.json_to_sheet(evs.map(e=>({titre:e.titre,date:e.date,lieu:e.lieu,type:e.type,ligne:e.ligne,motif:e.motif,meteo:e.meteo,heures:e.heures,notes:e.notes||"",agent:e.agent||""})));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"evenements");
+  XLSX.writeFile(wb,`evenements_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+window.exportXLSX=exportXLSX;
+
+function exportParMois(){
+  const evs=filtered();const groups={};
+  evs.forEach(ev=>{const k=(ev.date||"").slice(0,7)||"inconnu";(groups[k]=groups[k]||[]).push(ev);});
+  const wb=XLSX.utils.book_new();
+  Object.entries(groups).forEach(([mois,rows])=>{
+    const ws=XLSX.utils.json_to_sheet(rows.map(e=>({titre:e.titre,date:e.date,lieu:e.lieu,type:e.type,ligne:e.ligne,motif:e.motif,meteo:e.meteo,heures:e.heures,notes:e.notes||"",agent:e.agent||""})));
+    XLSX.utils.book_append_sheet(wb,ws,mois.slice(0,31));
+  });
+  XLSX.writeFile(wb,`evenements_par_mois_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+window.exportParMois=exportParMois;
+
+async function handleImport(file){
+  if(!file)return;
+  const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array"});
+  const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{defval:""});
+  setSyncStatus("loading","⟳ Import en cours...");
+  try{
+    const batch=writeBatch(db);
+    for(let i=0;i<json.length;i++){
+      const r=json[i];let meteo=String(r.meteo||"");
+      if(!meteo&&r.date){meteo=(await fetchMeteo(String(r.date).slice(0,10)))??"";}
+      const ref=doc(collection(db,"evenements"));
+      batch.set(ref,{titre:String(r.titre||""),date:String(r.date||"").slice(0,10),lieu:String(r.lieu||""),type:String(r.type||"aiguille 24V"),ligne:String(r.ligne||"TW"),motif:String(r.motif||""),meteo,heures:Number(r.heures||0)||0,notes:String(r.notes||""),agent:String(r.agent||""),createdAt:Date.now()-i});
+    }
+    await batch.commit();
+  }catch(e){setSyncStatus("error","✕ Erreur import");alert("Erreur import: "+e.message);}
+}
+window.handleImport=handleImport;
+
+// ——— Filtres ———
+function filtered(){
+  const q=(document.getElementById("filter-q")?.value||"").toLowerCase();
+  const fT=document.getElementById("filter-type")?.value||"Tous";
+  const fL=document.getElementById("filter-ligne")?.value||"Toutes";
+  const fM=document.getElementById("filter-motif")?.value||"Tous";
+  const fE=document.getElementById("filter-meteo")?.value||"Toutes";
+  return events.filter(e=>{
+    const mQ=`${e.titre} ${e.lieu} ${e.type} ${e.ligne} ${e.motif} ${e.meteo} ${e.agent}`.toLowerCase().includes(q);
+    return mQ&&(fT==="Tous"||e.type===fT)&&(fL==="Toutes"||e.ligne===fL)&&(fM==="Tous"||e.motif===fM)&&(fE==="Toutes"||e.meteo===fE);
+  });
+}
+
+// ——— Rendu côté droit UNIQUEMENT ———
+function renderRight(){
+  const evs=filtered();
+  const total=evs.length;
+  const totalH=evs.reduce((s,e)=>s+(Number(e.heures)||0),0);
+
+  // Stats
+  const types=new Set(evs.map(e=>e.type));
+  const motifs=new Set(evs.map(e=>e.motif));
+  document.getElementById("stats-area").innerHTML=`
+  <div class="grid4">
+    <div class="stat-card"><div class="stat-label">Événements</div><div class="stat-value">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">Heures totales</div><div class="stat-value">${totalH.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">Types distincts</div><div class="stat-value">${types.size}</div></div>
+    <div class="stat-card"><div class="stat-label">Motifs distincts</div><div class="stat-value">${motifs.size}</div></div>
+  </div>`;
+
+  // Graphiques
+  const typeMap=new Map();evs.forEach(e=>typeMap.set(e.type,(typeMap.get(e.type)||0)+1));
+  const typeArr=[...typeMap.entries()].sort((a,b)=>b[1]-a[1]);
+  const motifMap=new Map();evs.forEach(e=>motifMap.set(e.motif,(motifMap.get(e.motif)||0)+1));
+  const motifArr=[...motifMap.entries()].sort((a,b)=>b[1]-a[1]);
+  const heuresMap=new Map();evs.forEach(e=>heuresMap.set(e.type,(heuresMap.get(e.type)||0)+(Number(e.heures)||0)));
+  const heuresArr=[...heuresMap.entries()].sort((a,b)=>b[1]-a[1]);
+  const maxH=heuresArr.length?heuresArr[0][1]:1;
+  const maxM=motifArr.length?motifArr[0][1]:1;
+  const alerts=motifArr.filter(([m,n])=>m&&n>=ALERT_THRESHOLD);
+
+  document.getElementById("charts-area").innerHTML=`
+  ${alerts.length?`<div class="alert-box"><strong>Alerte — motifs récurrents (≥${ALERT_THRESHOLD}x) :</strong> ${alerts.map(([m,n])=>`${m} <span class="badge-alert">${n}x</span>`).join(" &nbsp;·&nbsp; ")}</div>`:""}
+  <div class="grid2">
+    <div class="card"><div class="section-title">Heures par type</div><div class="bar-chart">
+      ${heuresArr.length===0?`<div style="color:#888;font-size:12px;text-align:center;padding:20px 0">Pas de données</div>`:heuresArr.map(([t,h])=>`<div class="bar-row"><div class="bar-label" title="${t}">${t}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(h/maxH*100)}%">${h>=0.5?`<span class="bar-val">${h.toFixed(1)}</span>`:""}</div></div></div>`).join("")}
+    </div></div>
+    <div class="card"><div class="section-title">Top motifs</div><div class="bar-chart">
+      ${motifArr.filter(([m])=>m).length===0?`<div style="color:#888;font-size:12px;text-align:center;padding:20px 0">Pas de données</div>`:motifArr.filter(([m])=>m).slice(0,10).map(([m,n])=>`<div class="bar-row"><div class="bar-label" title="${m}">${m}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxM*100)}%;background:#639922">${n>=1?`<span class="bar-val">${n}</span>`:""}</div></div>${n>=ALERT_THRESHOLD?`<span class="badge-alert">!</span>`:""}</div>`).join("")}
+    </div></div>
+  </div>`;
+
+  // Tableaux résumé
+  document.getElementById("tables-area").innerHTML=`
+  <div class="grid2">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:0.5px solid #e0e0e0;font-size:13px;font-weight:500">Répartition par type</div>
+      <table><thead><tr><th>Type</th><th>Nb</th><th>%</th></tr></thead><tbody>
+      ${typeArr.length===0?`<tr><td colspan="3" style="text-align:center;color:#888;padding:20px">Aucune donnée</td></tr>`:typeArr.map(([t,n])=>`<tr><td>${t}</td><td>${n}</td><td style="color:#888">${total?Math.round(n/total*100):0}%</td></tr>`).join("")}
+      </tbody></table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:0.5px solid #e0e0e0;font-size:13px;font-weight:500">Top motifs</div>
+      <table><thead><tr><th>Motif</th><th>Nb</th></tr></thead><tbody>
+      ${motifArr.filter(([m])=>m).length===0?`<tr><td colspan="2" style="text-align:center;color:#888;padding:20px">Aucune donnée</td></tr>`:motifArr.filter(([m])=>m).map(([m,n])=>`<tr style="${n>=ALERT_THRESHOLD?"background:#FFF5F5":""}"><td>${m}${n>=ALERT_THRESHOLD?` <span class="badge-alert">${n}x !</span>`:""}</td><td>${n}</td></tr>`).join("")}
+      </tbody></table>
+    </div>
+  </div>`;
+
+  // Liste événements
+  const EVENT_TYPES_LIST=["aiguille 24V","aiguille de jonction","croisement TB/TB","croisement TW/TB","croisement ouvert","courbe","câble","Armoire d'alimentation","Armoire de Pontage","Pompier/Police","Objet sur la ligne","Ebus","Pantographe"];
+  const LIGNE_TYPES_LIST=["TW","TB","Mixte","CMB","CMJ","CMC"];
+  document.getElementById("list-area").innerHTML=`
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:10px 14px;border-bottom:0.5px solid #e0e0e0;font-size:13px;font-weight:500">Liste des événements <span style="color:#888;font-weight:400">(${evs.length})</span></div>
+    <div class="overflow-x"><table style="min-width:900px">
+      <thead><tr><th>Événement</th><th>Date</th><th>Lieu</th><th>Type</th><th>Ligne</th><th>Motif</th><th>Météo</th><th>Heures</th><th>Agent</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody>
+      ${evs.length===0?`<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Aucun résultat</td></tr>`:evs.map(e=>{
+        if(editingId===e.id&&editDraft){
+          const d=editDraft;const em=TYPE_TO_MOTIFS[d.type]||[];
+          return`<tr style="background:#f9f9f9">
+            <td><input value="${d.titre}" onchange="editDraft.titre=this.value" style="min-width:120px"></td>
+            <td><input type="date" value="${d.date}" onchange="editDraft.date=this.value"></td>
+            <td><input id="edit-lieu" value="${d.lieu}" style="min-width:80px"></td>
+            <td><select onchange="editDraft.type=this.value;editDraft.motif='';renderRight()">${EVENT_TYPES_LIST.map(t=>`<option${d.type===t?" selected":""}>${t}</option>`).join("")}</select></td>
+            <td><select onchange="editDraft.ligne=this.value">${LIGNE_TYPES_LIST.map(l=>`<option${d.ligne===l?" selected":""}>${l}</option>`).join("")}</select></td>
+            <td><select onchange="editDraft.motif=this.value"><option value="">--</option>${em.map(m=>`<option${d.motif===m?" selected":""}>${m}</option>`).join("")}</select></td>
+            <td><select onchange="editDraft.meteo=this.value"><option value="">--</option>${METEO_OPTIONS.map(m=>`<option${d.meteo===m?" selected":""}>${m}</option>`).join("")}</select></td>
+            <td><input type="number" step="0.01" min="0" value="${d.heures}" onchange="editDraft.heures=parseFloat(this.value)||0" style="width:70px;text-align:right"></td>
+            <td><input id="edit-agent" value="${d.agent||""}" style="min-width:80px"></td>
+            <td><textarea id="edit-notes" rows="1" style="min-width:100px">${d.notes||""}</textarea></td>
+            <td style="white-space:nowrap">
+              <button class="btn-success" onclick="saveEdit()" style="display:block;width:100%;margin-bottom:4px;font-size:12px">Sauver</button>
+              <button onclick="cancelEdit()" style="display:block;width:100%;margin-bottom:4px;font-size:12px">Annuler</button>
+              <button class="btn-danger" onclick="removeEvent('${e.id}')" style="display:block;width:100%;font-size:12px">Supprimer</button>
+            </td></tr>`;
+        }
+        return`<tr>
+          <td style="font-weight:500">${e.titre}</td>
+          <td style="white-space:nowrap">${formatFR(e.date)}</td>
+          <td>${e.lieu}</td>
+          <td><span class="tag tag-blue">${e.type}</span></td>
+          <td><span class="tag tag-green">${e.ligne}</span></td>
+          <td>${e.motif}</td>
+          <td style="white-space:nowrap">${meteoIcon(e.meteo)} ${e.meteo||""}</td>
+          <td style="text-align:right">${Number(e.heures||0).toFixed(2)}</td>
+          <td>${e.agent||""}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${(e.notes||"").replace(/"/g,"'")}"><small>${e.notes||""}</small></td>
+          <td style="white-space:nowrap">
+            <button onclick="startEdit('${e.id}')" style="font-size:12px;color:#185FA5">Modifier</button>
+            <button class="btn-danger" onclick="removeEvent('${e.id}')" style="font-size:12px;margin-left:4px">Supprimer</button>
+          </td></tr>`;
+      }).join("")}
+      </tbody>
+    </table></div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:#aaa;margin-top:8px;padding:12px 0;border-top:0.5px solid #e0e0e0">
+    Données partagées en temps réel via Firebase
+  </div>`;
+}
+window.renderRight=renderRight;
+
+// Init motifs
+onTypeChange();
+startListening();
+</script>
+</body>
+</html>
